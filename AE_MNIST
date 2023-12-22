@@ -1,0 +1,140 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Dec 11 13:45:31 2023
+
+@author: c0081806
+"""
+import torch
+import torch.nn as nn
+import torchvision as tv
+from matplotlib import pyplot as plt
+from torch.utils.data import DataLoader
+from torchvision.transforms import ToTensor
+
+# Defining Parameters
+batch_size = 64
+num_epochs = 1
+
+#Get training/testing MNIST datasets, setup dataloaders
+training_data = tv.datasets.MNIST(root="mydata", download=True, train=True, transform=ToTensor())
+test_data = tv.datasets.MNIST(root="mydata", download=True, train=False, transform=ToTensor())
+
+#Setup the training/testing dataloaders
+train_dataloader = DataLoader(training_data, shuffle=True, batch_size=batch_size)
+test_dataloader = DataLoader(test_data, batch_size=batch_size)
+
+#Set the image dimensions
+dim = len(training_data[0][0][0])
+
+class Autoencoder(nn.Module):
+    def __init__(self):
+        super(Autoencoder,self).__init__()
+        
+        self.encoder = nn.Sequential(
+            nn.Linear(dim*dim, 512),
+            nn.ReLU(True),
+            nn.Linear(512, 128),
+            nn.ReLU(True),
+            nn.Linear(128, 2)
+            )
+        
+        self.decoder = nn.Sequential(             
+            nn.Linear(2, 128),
+            nn.ReLU(True),
+            nn.Linear(128, 512),
+            nn.ReLU(True),
+            nn.Linear(512,dim*dim),
+            nn.ReLU(True),
+            )
+        
+    def forward(self,x):
+        x = self.encoder(x)
+        x = self.decoder(x)
+        return x
+    
+model = Autoencoder()
+loss_fn = nn.MSELoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+flatten = nn.Flatten()
+
+def train(dataloader, model, loss_fn, optimizer,t):
+    size = len(dataloader.dataset)
+    model.train()
+    for batch, (X, y) in enumerate(dataloader):
+
+        # Compute prediction error
+        In = flatten(X)
+        Out = model(In)
+        loss = loss_fn(Out, In)
+        
+        # Backpropagation
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        if batch % 100 == 0:
+            loss, current = loss.item(), (batch + 1) * len(X)
+            print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
+            
+        outputs[t+1] = {'in': In, 'out': Out}
+
+def test(dataloader, model, loss_fn):
+    model.eval()
+    test_loss = 0
+    
+    with torch.no_grad():
+        for X, y in dataloader:
+            
+            In = flatten(X)
+            Out = model(In)
+            
+            test_loss += loss_fn(Out, In).item()
+    test_loss /= len(dataloader) #num_batches
+    print(f"Test Error: \n Avg loss: {test_loss:>8f} \n")
+
+outputs = {} 
+
+for t in range(num_epochs):
+    print(f"Epoch {t+1}\n-------------------------------")
+    train(train_dataloader, model, loss_fn, optimizer,t)
+    test(test_dataloader, model, loss_fn) 
+print("Done!")
+
+
+###################### Plot ####################
+#Setup fig
+fig = plt.figure(constrained_layout=True)
+rows = 2 #6
+columns = 5
+fig.text(s='Autoencoder: A Sample for MNIST Dataset: ', x=0.5, y=1.20, fontsize=18, ha='center', va='center')
+fig.text(s='Input vs Output (1st Epoch)', x=0.5, y=1.13, fontsize=12, ha='center', va='center')
+
+# Initializing subplot counter 
+counter = 1
+epochs_list = [1] 
+
+# Plotting Input sample 
+for idx in range(11,16): 
+     
+    # Obtaining image from the dictionary 
+    val = outputs[1]['in'] 
+      
+    # Plotting image 
+    plt.subplot(7,5,counter) 
+    plt.imshow(val[idx].reshape(28, 28), cmap = 'gray')  
+    plt.axis('off') 
+      
+    # Incrementing subplot counter 
+    counter+=1
+  
+# Plotting Output sample 
+temp = outputs[1]['out'].detach().numpy() 
+for idx in range(11,16): 
+    plt.subplot(7, 5, counter) 
+    plt.imshow(temp[idx].reshape(28,28), cmap= 'gray') 
+    plt.axis('off')  
+    counter+=1
+    
+plt.savefig('plots/In vs Out', dpi=500, bbox_inches='tight')
+  
+plt.show()
