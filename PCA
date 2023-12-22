@@ -1,0 +1,37 @@
+import json
+import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.decomposition import PCA
+
+# Step 1: Load JSON data
+json_file_path = 'put the directory to the file from the gov doc' 
+with open(json_file_path, 'r') as file:
+    data = json.load(file)
+
+# Step 2: Convert JSON data to an array 
+data_array = np.array(data)
+
+# Step 3: Apply PCA
+n_components = 2  # adjust number of components 
+pca = PCA(n_components=n_components)
+data_pca = pca.fit_transform(data_array.reshape(-1, 1))  # Reshape for single feature
+
+# Step 4: Plot the original and PCA-transformed data
+plt.figure(figsize=(12, 4))
+
+# Plot original data
+plt.subplot(1, 2, 1)
+plt.plot(data_array)
+plt.title('Original Data')
+plt.xlabel('Index')
+plt.ylabel('Value')
+
+# Plot PCA-transformed data
+plt.subplot(1, 2, 2)
+plt.scatter(data_pca[:, 0], data_pca[:, 1])
+plt.title('PCA Transformed Data')
+plt.xlabel('Principal Component 1')
+plt.ylabel('Principal Component 2')
+
+plt.tight_layout()
+plt.show() 
