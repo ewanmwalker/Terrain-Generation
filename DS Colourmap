@@ -1,0 +1,22 @@
+import matplotlib.pyplot as plt
+from matplotlib import cm, transforms
+import Diamond_Square_Module as dsm
+
+#n for dimensions, h roughness (low=more), seed for reproduction, r initial random range
+p=(11,0.85,7,4)
+A = dsm.Diamond_Square(*p)
+
+#Colours
+cmap1=cm.gist_earth
+
+#Plot
+plt.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False) #no axes
+plt.title('Diamond-Square Colourmap (n={},h={},seed={},r={})'.format(*p),pad=15)
+base,rot = plt.gca().transData, transforms.Affine2D().rotate_deg(-90) #Rotate to match 3D plot, same Ps
+plt.pcolormesh((A),cmap=cmap1,transform= rot + base)
+plt.colorbar()
+
+#Save the image 
+plt.savefig('Plots/DS_Terrain_CM(n={},h={},seed={},r={}).png'.format(*p), dpi=1000, bbox_inches='tight')
+
+plt.show()
