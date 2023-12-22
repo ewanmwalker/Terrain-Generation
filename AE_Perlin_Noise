@@ -1,0 +1,185 @@
+# -*- coding: utf-8 -*-
+"""
+A script for training an Autoencoder on Perlin Noise generations.
+Utilises the PyTorch PyPI library, ReLU, the Adam optimizer and the
+Mean Squared Error (MSE) loss function and uses only dense layers.
+Built with a 2-neuron bottleneck layer for latent space analysis.
+
+https://github.com/dariocazzani/pytorch-AE
+https://pypi.org/project/perlin-noise/
+"""
+import torch 
+from matplotlib import pyplot as plt
+import numpy as np
+from perlin_noise import PerlinNoise
+from torch.utils.data import DataLoader
+import torch.nn as nn
+
+'''
+Set your parameters:
+num_gens : set the number of Perlin Noise heightmaps to train/test.
+dim : the pixel dimension of width & height of the data.
+batch_size : controls how many generations are sent at once
+num_epochs ; number of repetitions to refine the model
+'''
+#Parameters
+num_gens = 4096
+dim = 64
+batch_size = 32
+num_epochs = 32
+
+params = [num_gens, dim, batch_size, num_epochs]
+
+############### Generate images, tensors, dataloaders ###############
+images = []
+
+#Perlin Heightmap generation
+for n in range(0,num_gens):
+    
+    p_params = (3,n) #octave density, seed
+    noise = PerlinNoise(*p_params)
+    xpix, ypix = dim , dim #image resolution
+    pic = [[noise([i/xpix, j/ypix]) for j in range(xpix)] for i in range(ypix)]
+    x = y = np.arange(0,dim)
+    X,Y = np.meshgrid(x, y)
+    Per = np.array(pic)
+    
+    images.append(Per)
+
+#Format the heightmaps to tensors corrently
+images_2 = []
+for i in range(num_gens):
+    images_2.append([images[i]])
+np_images = np.array(images_2)
+
+#Define the dataset and dataloaders
+per_dataset = torch.from_numpy(np_images)
+train_dataloader = DataLoader(per_dataset, batch_size=batch_size)
+test_dataloader = DataLoader(per_dataset, batch_size=batch_size)
+
+
+########################### Model ###########################
+class Autoencoder(nn.Module):
+    def __init__(self):
+        super(Autoencoder,self).__init__()
+        
+        self.encoder = nn.Sequential(
+            nn.Linear(dim*dim, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 512),
+            nn.ReLU(),
+            nn.Linear(512, 128),
+            nn.ReLU(),
+            nn.Linear(128, 8)
+            )
+        
+        self.decoder = nn.Sequential(             
+            nn.Linear(8, 128),
+            nn.ReLU(),
+            nn.Linear(128, 512),
+            nn.ReLU(),
+            nn.Linear(512, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, dim*dim)
+            )
+        
+    def forward(self,x):
+        x = self.encoder(x)
+        x = self.decoder(x)        
+        return x
+    
+model = Autoencoder()
+loss_fn = nn.MSELoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+flatten = nn.Flatten()
+
+
+######################## Autoencoder Functions ########################
+
+def train(dataloader, model, loss_fn, optimizer,t):
+    model.train()
+    batch_tally = 1
+    
+    for batch, data in enumerate(dataloader):
+        
+        In = flatten(data).float()
+        Out = model(In)
+        loss = loss_fn(Out, In)
+        
+        # Backpropagation
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        loss = loss.item()
+        
+        print(f"loss: {loss:>7f} [{batch_tally:>5d}/{int( num_gens / batch_size ):>5d}] ")
+        
+        #Log 
+        batch_tally += 1
+        Inputs.append(In)
+        Outputs.append(Out)
+
+
+def test(dataloader, model, loss_fn):
+    model.eval()
+    test_loss = 0
+    
+    with torch.no_grad():
+        for data in dataloader:
+            
+            In = flatten(data).float()            
+            Out = model(In)
+            
+            test_loss += loss_fn(Out, In).item()
+    test_loss /= len(dataloader) #num_batches
+    print(f"Test Error: \n Avg loss: {test_loss:>8f} \n")
+
+#Complete In/Out Image storage initilisation
+Inputs = []
+Outputs = []
+
+#The network's fundamental for-loop
+for t in range(num_epochs):
+    print(f"Epoch {t+1}\n-------------------------------")
+    train(train_dataloader, model, loss_fn, optimizer,t)
+    test(test_dataloader, model, loss_fn) 
+print("Done!")
+
+
+########################### Plot ###########################
+#Setup fig
+fig = plt.figure(constrained_layout=True)
+rows = 2 
+columns = 5
+fig.text(s='Autoencoder: 5 Perlin Generation Samples:', x=0.5, y=1.20, fontsize=18, ha='center', va='center')
+fig.text(s='(num_gens={} , dim={} , batch_size={} , num_epochs={})'.format(*params), x=0.5, y=1.14, fontsize=10, ha='center', va='center')
+fig.text(s='Input vs Output', x=0.5, y=1.08, fontsize=12, ha='center', va='center')
+
+# Initializing subplot counter 
+counter = 1
+epoch = int(num_gens / 5)
+
+# Plotting input sample 
+for in_samples in range(0,5): 
+    val = Inputs[-1][in_samples].reshape(dim,dim)
+    
+    # Plotting input row
+    plt.subplot(7,5,counter) 
+    plt.imshow(val, cmap = 'gray')  
+    plt.axis('off') 
+    counter+=1
+  
+# Plotting output sample
+degrad = Outputs[-1].detach().numpy() #Remove grad from object
+for out_samples in range(0,5): 
+    val = degrad[out_samples].reshape(dim,dim)
+    
+    # Plotting output row
+    plt.subplot(7, 5, counter) 
+    plt.imshow(val, cmap= 'gray') 
+    plt.axis('off')  
+    counter+=1
+    
+plt.savefig('plots/PerlinAE_Plot_{},{},{},{}.png'.format(*params), dpi=500, bbox_inches='tight') 
+plt.show()
