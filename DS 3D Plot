@@ -1,0 +1,28 @@
+import numpy as np
+from matplotlib import cm, pyplot as plt
+from matplotlib.colors import LightSource
+import Diamond_Square_Module as dsm
+
+#n for dimensions, h roughness (low=more), seed for reproduction, r initial random range
+p=(11,0.85,7,4)
+A = dsm.Diamond_Square(*p)
+
+#Create Grid
+x = y = np.arange(0,len(A))
+X,Y = np.meshgrid(x, y)
+
+#Set up plot
+fig, ax = plt.subplots(subplot_kw=dict(projection='3d')) 
+ax.view_init(30, 20) #plot viewing position: angle (in the z plane, in xy plane)
+plt.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False) #no axes
+plt.title('Diamond-Square 3D (n={},h={},seed={},r={})'.format(*p))
+
+#Colours
+ls = LightSource(270, 45)
+cmap = ls.shade(A, cmap=cm.gist_earth, vert_exag=0.1, blend_mode='soft')
+ax.plot_surface(X, Y, A, facecolors=cmap, shade=False)
+
+#Save the image 
+plt.savefig('Plots/DS_Terrain_3D(n={},h={},seed={},r={}).png'.format(*p), dpi=1000, bbox_inches='tight')
+    
+plt.show()
