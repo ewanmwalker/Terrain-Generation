@@ -1,0 +1,118 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import random
+from scipy.signal import savgol_filter
+    
+#Find midpoints, then displace, then add displaced midpoints to array, repeat t times, return array
+def midpoint_appender(x0=0,x1=128,h=10,t=10,s=0): 
+    
+    #Seed for reproducibility, if no seed then produce random elevation
+    if s != 0:    
+        random.seed(s) 
+    
+    #z is a counter to divide h by for each recurrance so that to lessen jumpy noise
+    z=1    
+    #n is the number of significant figures the displacement ranges within
+    n=1000
+
+    #initialise a set of coordinates
+    A = np.array([[x0,0],[x1,0]])
+    
+    #Find the midpoints of the input array
+    def mid(A):
+        M = []
+    
+        for i in range(0,len(A)-1):
+            M.append( [A[i] + (A[i+1] - A[i])/2] )
+        
+        #print("midpoints",M)
+        return M
+        
+    #Displace the y coordinates of the given array
+    def disy_mid(M):
+        
+        D = M
+        
+        #if its the first set of coordinates, set it to be the height
+        if len(M) == 1:
+           D[0][0][1] = h
+           
+        else:
+           for i in range(0,len(M)):
+                D[i][0][1] = M[i][0][1] + random.randint(-n*int(h),n*int(h)) / (n*z)
+                
+                #terrain always greater than 0 i.e. above sealine 
+                if D[i][0][1] < 0:
+                    D[i][0][1] =  -D[i][0][1]
+        
+        #print("displaced midpoints",D)
+        return D
+    
+    #Add the displaced coordinates to the original input array
+    def tot_A(A,D):
+        
+        B = []
+        
+        j = 0
+        k = 0
+        
+        while j < len(A) or k < len(D):
+            
+            if j < len(A):
+                B.append(A[j])
+                j += 1
+            
+            if k < len(D):
+                B.append(D[k][0])
+                k += 1
+
+        #print("new array",B)
+        
+        return(B)
+    
+    #Repeat the process of adding y-displaced midpoints to an array t times
+    
+    for i in range(0,t):
+        
+        M = mid(A)
+        D = disy_mid(M)
+        B = tot_A(A,D)
+        
+        z=z+1
+        
+        A=B
+        
+    #Return an array containing a sequence of elevation coordinates
+    return(B)
+
+###############
+
+for h in range(20,4,-5):
+
+    seed = 14
+    t = 12
+    
+    #first x coord, second x coord, height of the hill,number of midpoint recurrances, seed
+    E_Coords = midpoint_appender(0,128,h,t,seed)
+    E_x_coords = []
+    E_y_coords = []
+    
+    for i in range(0,len(E_Coords)):
+        E_x_coords.append(E_Coords[i][0])
+        E_y_coords.append(E_Coords[i][1])
+    
+    #Savitzky-Golay filter - data, The length of the filter window i.e. # of coefficients,
+    #the order of the polynomial used to fit the samples
+    #Basically plots a least square fit to the data repeatedly for different windows of x
+    quiet_y = savgol_filter(E_y_coords, 101, 2)
+    
+    #Plot the raw noisy coordinates, then the smooth quiet coordinates
+    plt.plot(E_x_coords,E_y_coords, color=cm.prism(h), alpha=0.3)
+    plt.plot(E_x_coords, quiet_y, color=cm.prism(h), label="h={}".format(h))
+    
+    #Plot features
+    plt.title("Seed = {0}\n Iterations t = {1}".format(seed,t))
+    plt.xlabel("length / unit")
+    plt.ylabel("height / unit")
+    plt.legend()
